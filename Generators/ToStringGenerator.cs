@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Text;
 using Generators.Model;
 using Microsoft.CodeAnalysis;
@@ -17,8 +16,7 @@ public class ToStringGenerator : IIncrementalGenerator
         var classes = context.SyntaxProvider.CreateSyntaxProvider(
                 static (node, _) => IsSyntaxTarget(node),
                 static (ctx, _) => GetSemanticTarget(ctx))
-            .Where(static target => target is not null)
-            .Collect();
+            .Where(static target => target is not null);
 
         // Register output generation for each class.
         context.RegisterSourceOutput(classes,
@@ -69,16 +67,16 @@ public class ToStringGenerator : IIncrementalGenerator
 }");
     }
 
-    private static void Execute(SourceProductionContext context, ImmutableArray<ClassToGenerate> classesToGenerate)
+    private static void Execute(SourceProductionContext context, ClassToGenerate? classToGenerate)
     {
-        foreach (var classToGenerate in classesToGenerate)
-        {
-            var namespaceName = classToGenerate.NamespaceName;
-            var className = classToGenerate.ClassName;
-            var fileName = $"{namespaceName}.{className}.g.cs";
+        if (classToGenerate is null) return;
 
-            var stringBuilder = new StringBuilder();
-            stringBuilder.Append($@"namespace {namespaceName}
+        var namespaceName = classToGenerate.NamespaceName;
+        var className = classToGenerate.ClassName;
+        var fileName = $"{namespaceName}.{className}.g.cs";
+
+        var stringBuilder = new StringBuilder();
+        stringBuilder.Append($@"namespace {namespaceName}
 {{
     partial class {className}
     {{
@@ -86,23 +84,23 @@ public class ToStringGenerator : IIncrementalGenerator
         {{
             return $""");
 
-            var first = true;
-            foreach (var propertyName in classToGenerate.PropertyNames)
-            {
-                if (first)
-                    first = false;
-                else
-                    stringBuilder.Append("; ");
+        var first = true;
+        foreach (var propertyName in classToGenerate.PropertyNames)
+        {
+            if (first)
+                first = false;
+            else
+                stringBuilder.Append("; ");
 
-                stringBuilder.Append($"{propertyName}:{{{propertyName}}}");
-            }
+            stringBuilder.Append($"{propertyName}:{{{propertyName}}}");
+        }
 
-            stringBuilder.Append(@""";
+        stringBuilder.Append(@""";
         }
     }
 }
 ");
-            context.AddSource(fileName, stringBuilder.ToString());
-        }
+
+        context.AddSource(fileName, stringBuilder.ToString());
     }
 }
