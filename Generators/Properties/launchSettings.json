@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Roslyn Component Profile": {
+      "commandName": "DebugRoslynComponent",
+      "targetProject": "..\\SG\\TestConsoleApp.csproj"
+    }
+  }
+}
