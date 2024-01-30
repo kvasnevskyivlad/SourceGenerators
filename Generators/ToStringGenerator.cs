@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Text;
 using Generators.Model;
 using Microsoft.CodeAnalysis;
@@ -16,7 +17,8 @@ public class ToStringGenerator : IIncrementalGenerator
         var classes = context.SyntaxProvider.CreateSyntaxProvider(
                 static (node, _) => IsSyntaxTarget(node),
                 static (ctx, _) => GetSemanticTarget(ctx))
-            .Where(static target => target is not null);
+            .Where(static target => target is not null)
+            .Collect();
 
         // Register output generation for each class.
         context.RegisterSourceOutput(classes,
@@ -40,9 +42,7 @@ public class ToStringGenerator : IIncrementalGenerator
                 "Generators.ToStringGenerator.GenerateToStringAttribute");
 
         if (classSymbol is not null && attributeSymbol is not null)
-        {
             foreach (var attributeData in classSymbol.GetAttributes())
-            {
                 if (attributeSymbol.Equals(attributeData.AttributeClass, SymbolEqualityComparer.Default))
                 {
                     var namespaceName = classSymbol.ContainingNamespace.ToDisplayString();
@@ -50,18 +50,12 @@ public class ToStringGenerator : IIncrementalGenerator
                     var propertyNames = new List<string>();
 
                     foreach (var memberSymbol in classSymbol.GetMembers())
-                    {
                         if (memberSymbol.Kind == SymbolKind.Property &&
                             memberSymbol.DeclaredAccessibility == Accessibility.Public)
-                        {
                             propertyNames.Add(memberSymbol.Name);
-                        }
-                    }
 
                     return new ClassToGenerate(namespaceName, className, propertyNames);
                 }
-            }
-        }
 
         return null;
     }
@@ -75,19 +69,16 @@ public class ToStringGenerator : IIncrementalGenerator
 }");
     }
 
-    private static void Execute(SourceProductionContext context, ClassToGenerate? classToGenerate)
+    private static void Execute(SourceProductionContext context, ImmutableArray<ClassToGenerate> classesToGenerate)
     {
-        if (classToGenerate is null)
+        foreach (var classToGenerate in classesToGenerate)
         {
-            return;
-        }
+            var namespaceName = classToGenerate.NamespaceName;
+            var className = classToGenerate.ClassName;
+            var fileName = $"{namespaceName}.{className}.g.cs";
 
-        var namespaceName = classToGenerate.NamespaceName;
-        var className = classToGenerate.ClassName;
-        var fileName = $"{namespaceName}.{className}.g.cs";
-
-        var stringBuilder = new StringBuilder();
-        stringBuilder.Append($@"namespace {namespaceName}
+            var stringBuilder = new StringBuilder();
+            stringBuilder.Append($@"namespace {namespaceName}
 {{
     partial class {className}
     {{
@@ -95,27 +86,23 @@ public class ToStringGenerator : IIncrementalGenerator
         {{
             return $""");
 
-        var first = true;
-        foreach (var propertyName in classToGenerate.PropertyNames)
-        {
-            if (first)
+            var first = true;
+            foreach (var propertyName in classToGenerate.PropertyNames)
             {
-                first = false;
-            }
-            else
-            {
-                stringBuilder.Append("; ");
+                if (first)
+                    first = false;
+                else
+                    stringBuilder.Append("; ");
+
+                stringBuilder.Append($"{propertyName}:{{{propertyName}}}");
             }
 
-            stringBuilder.Append($"{propertyName}:{{{propertyName}}}");
-        }
-
-        stringBuilder.Append(@""";
+            stringBuilder.Append(@""";
         }
     }
 }
 ");
-
-        context.AddSource(fileName, stringBuilder.ToString());
+            context.AddSource(fileName, stringBuilder.ToString());
+        }
     }
 }
