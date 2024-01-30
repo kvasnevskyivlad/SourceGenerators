@@ -32,15 +32,16 @@ namespace Generators
         private static ClassDeclarationSyntax? GetSemanticTarget(GeneratorSyntaxContext context)
         {
             var classDeclarationSyntax = (ClassDeclarationSyntax)context.Node;
+            var classSymbol = context.SemanticModel.GetDeclaredSymbol(classDeclarationSyntax);
+            var attributeSymbol =
+                context.SemanticModel.Compilation.GetTypeByMetadataName(
+                    "Generators.ToStringGenerator.GenerateToStringAttribute");
 
-            foreach (var attributeListSyntax in classDeclarationSyntax.AttributeLists)
+            if (classSymbol is not null && attributeSymbol is not null)
             {
-                foreach (var attributeSyntax in attributeListSyntax.Attributes)
+                foreach (var attributeData in classSymbol.GetAttributes())
                 {
-                    var attributeName = attributeSyntax.Name.ToString();
-
-                    if (attributeName == "GenerateToString" ||
-                        attributeName == "GenerateToStringAttribute")
+                    if (attributeSymbol.Equals(attributeData.AttributeClass, SymbolEqualityComparer.Default))
                     {
                         return classDeclarationSyntax;
                     }
